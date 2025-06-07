@@ -7,7 +7,17 @@ const auto PIN_TX = D0;
 const auto PIN_PTT = D1; 
 
 #include <SoftwareSerial.h>
+#include <WiFiManager.h>
+#include <ESP8266WiFi.h>
+#include <ESP8266mDNS.h>
+#include <ArduinoOTA.h>
+
+
 SoftwareSerial radioSer(PIN_RX, PIN_TX, false);
+
+
+// TODO : TCP
+
 
 // the setup function runs once when you press reset or power the board
 void setup() {
@@ -40,6 +50,26 @@ int read_with_wait() {
   while(!radioSer.available());
   return radioSer.read();
 }
+
+void writeFreqTask(int freq){
+  if (freq < 0 ||freq >470*10^6)
+  {
+    Serial.println("Out of range frequence");
+    Serial.println("Vesztettem");
+    return;
+  }
+  // example freq = 433 123 456    
+  while(radioSer.read() > 0);
+
+  radioSer.write(freq/(10^7)); // send: 43
+  radioSer.write(freq/(10^5) - ( (freq/(10^7) ) *100) );
+  radioSer.write(freq/(10^3) - ( (freq/(10^5) ) *100) );
+  radioSer.write(freq/(10^1) - ( (freq/(10^3) ) *100) );
+  radioSer.write(1); // Opcode for frequency setting : 01
+  
+  
+}
+
 
 void readFreqTask() {
   while(radioSer.read() > 0);
