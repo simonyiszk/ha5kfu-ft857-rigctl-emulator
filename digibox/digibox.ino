@@ -44,6 +44,10 @@ void taskHeartbeat() {
 
 void taskPTTDetect() {
   bool is_ptt = ! digitalRead(PIN_PTT);
+  if (is_ptt)
+  {
+      // TODO: TCP packet send to mute 
+  }
 }
 
 int read_with_wait() {
@@ -68,6 +72,130 @@ void writeFreqTask(int freq){
   radioSer.write(1); // Opcode for frequency setting : 01
   
   
+}
+
+void setModeTask(String a)
+{
+  uint32_t mod = 0x0; 
+  bool valid_mod = 1;
+  if (a == "LSB")
+  {
+    mod = 0;
+  }
+  else if (a == "USB")
+  {
+    mod = 1;
+  }
+ else if (a == "CW")
+  {
+    mod = 2;
+  }
+  else if (a == "CWR")
+  {
+    mod = 3;
+  }
+  else if (a == "WFM") // Ez ha jól tudom akkor a jézuson a sima FM
+  {
+    mod = 8;
+  }
+  else if (a == "FM") // Ez pedig az FM-N
+  {
+    mod = 0x88;
+  }
+  else if (a == "AM")
+  {
+    mod = 4;
+  }
+  else if (a == "DIG")
+  {
+    mod = 0x0a;
+  }
+  else if (a == "PKT")
+  {
+    mod = 0x0c;
+  }
+  else
+  {
+    valid_mod = 0;
+  }
+  if (valid_mod)
+  {
+  while(radioSer.read() > 0);
+  radioSer.write(mod);
+  radioSer.write(0);
+  radioSer.write(0);
+  radioSer.write(0);
+  radioSer.write(7);
+  }
+  else
+  {
+    Serial.println("Unknown mode");
+  }
+  return;
+}
+
+void taskSetPTT(int a)
+{
+  uint cmd = 0;
+  switch (a)
+  {
+    case '0':
+      cmd = 0x88; break;
+    case '1':
+      cmd = 0x08; break;
+    case '2':
+      cmd = 0x08; break;
+    case '3':
+      cmd = 0x08; break;
+    default:
+    Serial.println("incorrect PTT mode");
+     return;
+  }
+  while(radioSer.read() > 0);
+  radioSer.write(0);
+  radioSer.write(0);
+  radioSer.write(0);
+  radioSer.write(0);
+  radioSer.write(cmd);
+return;
+
+}
+
+
+void menuTask()
+{
+if (Serial.available())
+{
+char codeChar = Serial.read();
+
+switch (codeChar){
+  case 'f':
+  readFreqTask(); break;
+  
+  case 'F': 
+  int freq = 0;
+  sscanf(Serial.readStringUntil('\n').c_str(), "%d", &freq);
+  writeFreqTask(freq);
+  break;
+
+  case 'M':
+  String r_mode;
+  r_mod =Serial.readString();
+  r_mod.trim();
+  setModeTask(r_mod);
+  break;
+  case 'T':
+  int ptt_m = 0;
+  sscanf(Serial.readStringUntil('\n').c_str(), "%d", &ptt_m);
+  taskSetPTT(ptt_m);
+  break;
+  default:
+  Serial.println("Incorrect rigctl command");
+
+}
+return;
+}
+
 }
 
 
