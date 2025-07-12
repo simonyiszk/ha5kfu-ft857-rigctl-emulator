@@ -74,7 +74,7 @@ void taskPTTDetect() {
   bool is_ptt = !digitalRead(PIN_PTT);
   if (is_ptt) {
     // TODO: send it to remote rigctl instead
-    WiFiClient websdr = client.connect(MUTE_RIGCTL_IP,MUTE_RIGCTL_PORT);
+    WiFiClient websdr = client.connect(MUTE_RIGCTL_IP, MUTE_RIGCTL_PORT);
     websdr.println();
   }
 }
@@ -85,67 +85,64 @@ int read_with_wait() {
   return radioSer.read();
 }
 
-void writeFreqCommand(char* freq) {
-  
-  
-  if (atoi(freq) < 0 || atoi(freq) > 470000000) 
-  {
+void writeFreq(char* freq) {
+
+
+  if (atoi(freq) < 0 || atoi(freq) > 470000000) {
     Serial.println("Out of range frequence");
     Serial.println("Vesztettem");
     return;
   }
-  // example freq = 433 123 456
+  
   while (radioSer.read() > 0)
     ;
-  char buff[3] ;
-  buff[2] = '\n';
-  for (int i = 0; i < 4; i++)
-  {
-    buff[0] = freq[2*i];
-    buff[1] = freq[2*i+1];
-    radioSer.write(atoi(&buff));
+  char buff[3];
+  buff[2] = '\0';
+ for (int i = 0; i < 4; i++) { // Doesn't work currently 
+    buff[0] = freq[2 * i];
+    buff[1] = freq[2 * i + 1];
+    radioSer.write(atoi(&buff)); 
   }
 
   radioSer.write(1);  // Opcode for frequency setting : 01
 }
 
-const struct {int mode; const char* name;} ARR[] = {
-  {0, "LSB"},
-  {1, "USB"},
-  {2, "CW"},
-  {3, "CWR"},
-  {8, "WFM"},
-  {0x88, "FM"},
-  {4, "AM"},
-  {0x0a, "DIG"},
-  {0x0c, "PKT"}
+const struct {
+  int mode;
+  const char* name;
+} ARR[] = {
+  { 0, "LSB" },
+  { 1, "USB" },
+  { 2, "CW" },
+  { 3, "CWR" },
+  { 8, "WFM" },
+  { 0x88, "FM" },
+  { 4, "AM" },
+  { 0x0a, "DIG" },
+  { 0x0c, "PKT" }
 };
 
 void setModeTask(char* a) {
   uint32_t mod = 0x0;
   bool valid_mod = 0;
   int i = 0;
-  for (i = 0; i< 8;i++)
-    {
-      if (strcmp(a, ARR[i].name))
-      {
-        mod = ARR[i].mode;
-        valid_mod = 1;
-        break;
-      }
+  for (i = 0; i < 8; i++) {
+    if (strcmp(a, ARR[i].name)) {
+      mod = ARR[i].mode;
+      valid_mod = 1;
+      break;
     }
+  }
 
-  if (valid_mod)
-  {
-  while (radioSer.read() > 0);
+  if (valid_mod) {
+    while (radioSer.read() > 0)
+      ;
     radioSer.write(mod);
     radioSer.write(0);
     radioSer.write(0);
     radioSer.write(0);
     radioSer.write(7);
-  }
-  else
-  {
+  } else {
     Serial.println("Unknown modulation or error");
   }
   return;
@@ -164,9 +161,10 @@ void taskSetPTT(char a) {
       break;
     default:
       Serial.println("incorrect PTT mode");
-      return;    
+      return;
   }
-  while (radioSer.read() > 0);
+  while (radioSer.read() > 0)
+    ;
   radioSer.write(0);
   radioSer.write(0);
   radioSer.write(0);
@@ -177,30 +175,29 @@ void taskSetPTT(char a) {
 
 void processRigCTL(char* param) {
   char codeChar = *(param);
-  if ( *(param+1) == 'm')
-    {
-      readFreqTask(); // TODO: logoló program működését át kéne nézni
-    }
+  if (*(param + 1) == 'm') {
+    readFreqTask();  // TODO: logoló program működését át kéne nézni
+  }
 
 
   switch (codeChar) {
-    case 'f':  
+    case 'f':
       readFreqTask();
       break;
 
     case 'F':
-      
-      writeFreqTask( param+2);
+
+      writeFreqTask( (param+2) );
       break;
 
     case 'M':
-      
-      setModeTask(param+2);
+
+      setModeTask( (param + 2) );
       break;
 
     case 'T':
-      
-      taskSetPTT(*(param+2));
+
+      taskSetPTT(*(param + 2));
       break;
     default:
       Serial.println("Incorrect rigctl command");
@@ -208,22 +205,20 @@ void processRigCTL(char* param) {
 }
 void SerialReceive() {
   if (Serial.available()) {
-    *(buffer+Serial.available()) = '\0';
-    for (int i= 0; i< Serial.available(), i++)
-    {
-      *(buffer+i) = Serial.read();
+    *(buffer + Serial.available()) = '\0';
+    for (int i = 0; i < Serial.available(), i++) {
+      *(buffer + i) = Serial.read();
     }
-    
+
     processRigCTL(buffer);
   }
 }
 
 void TCPReceive() {
-  *(buffer+client.available()) = '\0';
-  for (int i= 0; i< client.available(), i++)
-    {
-      *(buffer+i) = client.read();
-    }
+  *(buffer + client.available()) = '\0';
+  for (int i = 0; i < client.available(), i++) {
+    *(buffer + i) = client.read();
+  }
 
   processRigCTL(buffer);
 }
@@ -299,7 +294,7 @@ void readFreqTask() {
       break;
     case 0x88:
       Serial.println("NFM");
-       if (tcp_en) {
+      if (tcp_en) {
         client.println("NFM");
       }
       break;
@@ -327,6 +322,6 @@ void loop() {
 
   if (client && client.connected() && client.available()) {
     TCPReceive();
-    }
+  }
   SerialReceive();
 }
