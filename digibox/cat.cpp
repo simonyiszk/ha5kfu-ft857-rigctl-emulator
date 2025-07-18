@@ -16,11 +16,12 @@ SoftwareSerial radioSer(PIN_RX, PIN_TX, false);
 
 
 int read_with_wait() {
-  while (!radioSer.available())
-    ;
+  auto timeout_ends = millis() + SERIAL_TIMEOUT;
+  while (!radioSer.available() && millis() < timeout_ends);
+  if (!radioSer.available())
+    return -1;
   return radioSer.read();
 }
-
 
 
 const struct {
@@ -54,7 +55,7 @@ RIGCTL_STATUS setRadioMode(const char* new_mode) {
   }
 
   if (valid_mode) {
-    while (radioSer.read() > 0)
+    while (radioSer.read() >= 0)
       ;
     radioSer.write(mode);
     radioSer.write(0);
@@ -68,7 +69,7 @@ RIGCTL_STATUS setRadioMode(const char* new_mode) {
 }
 
 RIGCTL_STATUS setRadioFreq(uint32_t freq) {
-  while (radioSer.read());
+  while (radioSer.read()>=0);
 
   char freq_bcd_rev[8];
 
@@ -129,24 +130,34 @@ RIGCTL_STATUS readRadioFreqMode(FREQ_AND_MODE *resp) {
   
   uint32_t freq = 0;
   auto r = read_with_wait();
+  if (r<0)
+    return STATUS_HW_ERROR;
   freq += (r >> 4) * 100 + (r & 0xf) * 10;
   freq *= 100;
 
   r = read_with_wait();
+  if (r<0)
+    return STATUS_HW_ERROR;
   freq += (r >> 4) * 100 + (r & 0xf) * 10;
   freq *= 100;
 
   r = read_with_wait();
+  if (r<0)
+    return STATUS_HW_ERROR;
   freq += (r >> 4) * 100 + (r & 0xf) * 10;
   freq *= 100;
 
   r = read_with_wait();
+  if (r<0)
+    return STATUS_HW_ERROR;
   freq += (r >> 4) * 100 + (r & 0xf) * 10;
 
   resp->freq = freq;
 
   // parse mode
   r = read_with_wait();
+  if (r<0)
+    return STATUS_HW_ERROR;
 
   resp->mode = "UNKNOWN";
   for (int i = 0; i < FT857_RIGCTL_MODE_MAP_SIZE; i++) {

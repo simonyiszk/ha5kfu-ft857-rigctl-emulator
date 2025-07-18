@@ -54,20 +54,23 @@ void setup() {
   pinMode(PIN_PTT, INPUT_PULLUP);
 
   Serial.begin(115200);
+  Serial.setDebugOutput(true);
   radioSer.begin(RADIO_CAT_SPEED);
 
   delay(500);
   WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
   WiFiMulti.addAP(SSID, PASS);
-  
+  Serial.println("Begin connecting"); 
+
   while (WiFiMulti.run() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
   }
 
-
   MDNS.begin("ft857-digrig");
   MDNS.addService("rigctld", "tcp", TCP_LISTEN_PORT);
+  setup_ota();
 
 
   auto ip = WiFi.localIP();
@@ -86,11 +89,29 @@ void taskHeartbeat() {
   }
 }
 
+WiFiClient ptt_client;
+bool last_ptt_status;
 void taskPTTDetect() {
+  static uint32_t last_checked;
+  static uint32_t last_tried_to_connect;
+  if (millis() - last_checked < 100) return;
+  last_checked = millis();
+
   bool is_ptt = !digitalRead(PIN_PTT);
-  if (is_ptt) {
-    // TODO: send it to remote rigctl instead
+
+  if (is_ptt != last_ptt_status) {
+    if (!ptt_client.connected()) {
+      // only try to connect every 10s or so
+      if (millis() - last_tried_to_connect < 10000) return;
+      last_tried_to_connect = millis();
+      if (!ptt_client.connect(MUTE_RIGCTL_IP, MUTE_RIGCTL_PORT)) return;
+    }
+    if (is_ptt)
+      ptt_client.println(MUTE_RIGCTL_COMMAND);
+    else
+      ptt_client.println(UNMUTE_RIGCTL_COMMAND);
   }
+  last_ptt_status = is_ptt;
 }
 
 
@@ -151,7 +172,9 @@ void processRigCTL(const char* commandline, char* output_buffer) {
       break;
     default:
       snprintf(output_buffer, BUFFER_SIZE, "RPRT %d\n", STATUS_PARSE_ERROR);
-      Serial.println("Incorrect rigctl command");
+      Serial.println("Incorrect rigctl command:");
+      Serial.print("\tCommand: "); Serial.println(codeChar);
+      Serial.print("\tparameter: "); Serial.println(parameter);
   }
 }
 
@@ -166,7 +189,9 @@ void check_clients() {
   if(client.connected()) {
     if (client.available()) {
       char resp[BUFFER_SIZE];
-      const char* cmd = client.readStringUntil('\n').c_str();
+      auto cmd_str = client.readStringUntil('\n');
+      Serial.print("Received command line: "); Serial.println(cmd_str);
+      const char* cmd = cmd_str.c_str();
       processRigCTL(cmd, resp);
       client.print(resp);
 
@@ -184,4 +209,5 @@ void loop() {
   WiFiMulti.run();
   taskHeartbeat();
   check_clients();
+  taskPTTDetect();
 }
