@@ -1,6 +1,10 @@
 #include "cat.hpp"
 #include "config.h"
 
+
+/*
+Consult FT-857D manual section "CAT operation" for the explanation of the FT-857D serial protocol.
+*/
 enum FT857_CMD {
   CMD_SET_PTT_ON = 0x08,
   CMD_SET_PTT_OFF = 0x88,
@@ -9,11 +13,7 @@ enum FT857_CMD {
   CMD_READ_FREQ = 3,
 };
 
-// TODO: timeouts for read operations, and return STATUS_HW_ERROR if timeouted
-
-
 SoftwareSerial radioSer(PIN_RX, PIN_TX, false);
-
 
 int read_with_wait() {
   auto timeout_ends = millis() + SERIAL_TIMEOUT;

@@ -51,7 +51,8 @@ void setup() {
 
   // init inputs
   pinMode(PIN_RX, INPUT);
-  pinMode(PIN_PTT, INPUT_PULLUP);
+  if constexpr(ENABLE_REMOTE_MUTE)
+    pinMode(PIN_PTT, INPUT_PULLUP);
 
   Serial.begin(115200);
   Serial.setDebugOutput(true);
@@ -72,12 +73,13 @@ void setup() {
   MDNS.addService("rigctld", "tcp", TCP_LISTEN_PORT);
   setup_ota();
 
-
   auto ip = WiFi.localIP();
   Serial.println(ip);
   server.begin();
 }
 
+
+// Simple blinking LED heartbeat
 void taskHeartbeat() {
   static uint32_t last_update;
   static bool state;
@@ -89,23 +91,33 @@ void taskHeartbeat() {
   }
 }
 
+
+/*
+Remote muting task. See config.h for configuration
+*/
 WiFiClient ptt_client;
 bool last_ptt_status;
 void taskPTTDetect() {
+  // last_checked is used to throttle PTT checking, and this way, also for dumb debouncing. We only check every 100ms
   static uint32_t last_checked;
+  // last_tried_to_connect is to throttle TCP connecting, so we don't block the whole program by trying to connect to a shutdown server. We try to connect at least 10s after the last try.
   static uint32_t last_tried_to_connect;
+
+
   if (millis() - last_checked < 100) return;
   last_checked = millis();
 
   bool is_ptt = !digitalRead(PIN_PTT);
-
   if (is_ptt != last_ptt_status) {
+    // connect if we are not
     if (!ptt_client.connected()) {
       // only try to connect every 10s or so
       if (millis() - last_tried_to_connect < 10000) return;
       last_tried_to_connect = millis();
       if (!ptt_client.connect(MUTE_RIGCTL_IP, MUTE_RIGCTL_PORT)) return;
     }
+
+    // actually send the messages
     if (is_ptt)
       ptt_client.println(MUTE_RIGCTL_COMMAND);
     else
@@ -115,10 +127,10 @@ void taskPTTDetect() {
 }
 
 
+
 const auto BUFFER_SIZE = 80;
-
-
 /*
+Run Rigctld command and write result to output_buffer
 @param commandline zero terminated line of command entered with leading and trailing whitespace removed. Example "f", "F 1234"
 @param output_buffer buffer for returned string, at least BUFFER_SIZE long
 */
@@ -191,6 +203,8 @@ void check_clients() {
       char resp[BUFFER_SIZE];
       auto cmd_str = client.readStringUntil('\n');
       Serial.print("Received command line: "); Serial.println(cmd_str);
+
+      // I had a weird bug where I could only use this, not client.readStringUntil('\n').c_str(). I suspect it was auto-freeing the string that way, and thus, invalidate the pointer.
       const char* cmd = cmd_str.c_str();
       processRigCTL(cmd, resp);
       client.print(resp);
@@ -209,5 +223,6 @@ void loop() {
   WiFiMulti.run();
   taskHeartbeat();
   check_clients();
-  taskPTTDetect();
+  if constexpr(ENABLE_REMOTE_MUTE)
+    taskPTTDetect();
 }
